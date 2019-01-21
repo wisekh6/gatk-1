@@ -103,8 +103,7 @@ def score_and_write_batch(model: keras.Model,
                                     batch_size=python_batch_size)
     elif tensor_type in defines.TENSOR_MAPS_2D:
         predictions = model.predict(
-            {tensor_type: np.array(read_batch), annotation_set: np.array(annotation_batch)},
-            batch_size=python_batch_size)
+            [np.array(read_batch), np.array(annotation_batch)], batch_size=python_batch_size)
     else:
         raise ValueError('Unknown tensor mapping.  Check architecture file.', tensor_type)
 
