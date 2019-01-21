@@ -136,10 +136,11 @@ def reference_string_to_tensor(reference: str) -> np.ndarray:
 
 def annotation_string_to_tensor(annotation_set: str, annotation_string: str) -> np.ndarray:
     name_val_pairs = annotation_string.split(';')
+    annotation_names = annotation_set.split(',');
     name_val_arrays = [p.split('=') for p in name_val_pairs]
     annotation_map = {str(p[0]).strip(): p[1] for p in name_val_arrays if len(p) > 1}
-    annotation_data = np.zeros((len(defines.ANNOTATIONS[annotation_set]),))
-    for ii, a in enumerate(defines.ANNOTATIONS[annotation_set]):
+    annotation_data = np.zeros((len(annotation_names),))
+    for ii, a in enumerate(annotation_names):
         if a in annotation_map and not math.isnan(float(annotation_map[a])):
             annotation_data[ii] = annotation_map[a]
 

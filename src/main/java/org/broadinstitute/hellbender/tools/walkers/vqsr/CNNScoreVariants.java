@@ -38,8 +38,11 @@ import com.intel.gkl.IntelGKLUtils;
 /**
  * Annotate a VCF with scores from a Convolutional Neural Network (CNN).
  *
- * This tool streams variants and their reference context to a python program
+ * This tool streams variants and their reference context to a python program,
  * which evaluates a pre-trained neural network on each variant.
+ * The default models were trained on single-sample VCFs.
+ * The default model should not be used on VCFs with annotations from joint call-sets.
+ *
  * The neural network performs convolutions over the reference sequence surrounding the variant
  * and combines those features with a multilayer perceptron on the variant annotations.
  *
@@ -69,8 +72,6 @@ import com.intel.gkl.IntelGKLUtils;
  *   -V vcf_to_annotate.vcf.gz \
  *   -R reference.fasta \
  *   -O annotated.vcf \
- *   -inference-batch-size 2 \
- *   -transfer-batch-size 2 \
  *   -tensor-type read-tensor
  * </pre>
  *
@@ -92,8 +93,6 @@ import com.intel.gkl.IntelGKLUtils;
  *   -V vcf_to_annotate.vcf.gz \
  *   -R reference.fasta \
  *   -O annotated.vcf \
- *   -inference-batch-size 2 \
- *   -transfer-batch-size 2 \
  *   -tensor-type read-tensor \
  *   -model path/to/my_model_folder/
  * </pre>
@@ -127,20 +126,19 @@ public class CNNScoreVariants extends TwoPassVariantWalker {
     private static final int ALT_INDEX = 3;
     private static final int KEY_INDEX = 4;
     private static final int FIFO_STRING_INITIAL_CAPACITY = 1024;
+    private static final int MAX_BATCH_SIZE_1D = 1024;
+    private static final int MAX_BATCH_SIZE_2D = 64;
 
     @Argument(fullName = StandardArgumentDefinitions.OUTPUT_LONG_NAME,
             shortName = StandardArgumentDefinitions.OUTPUT_SHORT_NAME,
             doc = "Output file")
     private String outputFile;
 
-    @Argument(fullName = "model-dir", shortName = "model", doc = "Directory containing Neural Net architecture and configuration json file", optional = true)
+    @Argument(fullName = "model-dir", shortName = "model", doc = "Directory containing Neural Net architecture and configuration json file. If not supplied the default model will be used.", optional = true)
     private String modelDir;
 
     @Argument(fullName = "tensor-type", shortName = "tensor-type", doc = "Name of the tensors to generate, reference for 1D reference tensors and read_tensor for 2D tensors.", optional = true)
     private TensorType tensorType = TensorType.reference;
-
-    @Argument(fullName = "annotation-set", shortName = "annotation-set", doc = "Name of the set of annotations to use", optional = true)
-    private String annotationSet = DEFAULT_ANNOTATION_SET;
 
     @Argument(fullName = "window-size", shortName = "window-size", doc = "Neural Net input window size", minValue = 0, optional = true)
     private int windowSize = 128;
@@ -207,12 +205,21 @@ public class CNNScoreVariants extends TwoPassVariantWalker {
     private String scoreKey;
     private Scanner scoreScan;
     private VariantContextWriter vcfWriter;
+    private String annotationSetString;
 
     private static String resourcePathReadTensor = Resource.LARGE_RUNTIME_RESOURCES_PATH + "/cnn_score_variants/small_2d.json";
     private static String resourcePathReferenceTensor = Resource.LARGE_RUNTIME_RESOURCES_PATH + "/cnn_score_variants/1d_cnn_mix_train_full_bn.json";
 
     @Override
     protected String[] customCommandLineValidation() {
+        if (tensorType.equals(TensorType.read_tensor)){
+            transferBatchSize = Math.max(transferBatchSize, MAX_BATCH_SIZE_2D);
+            inferenceBatchSize = Math.max(inferenceBatchSize, MAX_BATCH_SIZE_2D);
+        } else if (tensorType.equals(TensorType.reference)){
+            transferBatchSize = Math.max(transferBatchSize, MAX_BATCH_SIZE_1D);
+            inferenceBatchSize = Math.max(inferenceBatchSize, MAX_BATCH_SIZE_1D);
+        }
+
         if (inferenceBatchSize > transferBatchSize) {
             return new String[]{"Inference batch size must be less than or equal to transfer batch size."};
         }
@@ -286,6 +293,7 @@ public class CNNScoreVariants extends TwoPassVariantWalker {
             pythonExecutor.sendSynchronousCommand("import vqsr_cnn" + NL);
 
             scoreKey = getScoreKeyAndCheckModelAndReadsHarmony();
+            annotationSetString = this.annotationKeys.toString().replace(" ", "").replace("[", "").replace("]", "");
             initializePythonArgsAndModel();
         } catch (IOException e) {
             throw new GATKException("Error when creating temp file and initializing python executor.", e);
@@ -469,7 +477,7 @@ public class CNNScoreVariants extends TwoPassVariantWalker {
                 curBatchSize,
                 inferenceBatchSize,
                 tensorType,
-                annotationSet,
+                annotationSetString,
                 windowSize,
                 readLimit,
                 outputTensorsDir) + NL;
