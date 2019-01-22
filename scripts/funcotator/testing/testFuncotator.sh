@@ -57,6 +57,7 @@ MANUAL_MODE=false
 
 # Change this to point to your funcotator data sources folder:
 DATA_SOURCES_PATH=/Users/jonn/Development/funcotator_dataSources_latest
+DATA_SOURCES_PATH_GERMLINE=/Users/jonn/Development/funcotator_dataSources_germline_latest
 HG19=/Users/jonn/Development/references/Homo_sapiens_assembly19.fasta
 HG38=/Users/jonn/Development/references/Homo_sapiens_assembly38.fasta
 
@@ -308,7 +309,7 @@ if [[ $r -eq 0 ]] && ${doRunLargeTests} ; then
   fi
 
   # Use the AOU data sources if we need them:
-  $useAOUDataSources && echo "Using AOU data sources." && DATA_SOURCES_PATH=/Users/jonn/Development/funcotator_dataSources.vAoU3
+  $useAOUDataSources && echo "Using AOU data sources." && DATA_SOURCES_PATH=/Users/jonn/Development/funcotator_dataSources_germline_latest
 
   # Use cloud data sources if we need them:
   #$useCloudDataSources && echo "Using cloud data sources." && DATA_SOURCES_PATH=/Users/jonn/Development/gatk/src/test/resources/large/funcotator/funcotator_dataSources_cloud_gnomad/
